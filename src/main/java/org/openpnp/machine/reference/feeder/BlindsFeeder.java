@@ -23,6 +23,9 @@ package org.openpnp.machine.reference.feeder;
 
 
 import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
@@ -32,8 +35,18 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Hashtable;
+import java.util.Iterator;
 import java.util.List;
 
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageTypeSpecifier;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.metadata.IIOMetadataNode;
+import javax.imageio.stream.ImageOutputStream;
 import javax.swing.Action;
 
 import org.apache.commons.io.IOUtils;
@@ -80,6 +93,13 @@ import org.openpnp.vision.pipeline.stages.SimpleOcr.OcrModel;
 import org.pmw.tinylog.Logger;
 import org.simpleframework.xml.Attribute;
 import org.simpleframework.xml.Element;
+
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.EncodeHintType;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.datamatrix.encoder.SymbolShapeHint;
+import com.google.zxing.qrcode.QRCodeWriter;
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 
 
 /**
@@ -1115,6 +1135,167 @@ public class BlindsFeeder extends ReferenceFeeder {
             Logger.trace("OCR text "+detectedOcrModel.getText());
             triggerOcrAction(detectedOcrModel, ocrAction);
         }
+    }
+
+    public void generatePartNumberQRCodeImage(File file, int printerDpi) throws Exception {
+        QRCodeWriter writer = new QRCodeWriter();
+        List<BlindsFeeder> feeders = getConnectedFeeders();
+
+        List<BufferedImage> qrcImageList = new ArrayList<>();
+
+        final double srCodeSize_mm = 10.0;
+        final double marginWidthmm = 2.0;
+        final double borderWidthmm = 0.5;
+        final double fontSizemm = 2.5;
+        final double maxTextWidthmm = 60.0;
+
+        final double pixelsPerMm = (double) printerDpi / 25.4;
+        final int qrCodeSizePx = (int) (srCodeSize_mm * pixelsPerMm);
+        final int marginWidthPx = (int) (marginWidthmm * pixelsPerMm);
+        final int borderWidthPx = (int) (borderWidthmm * pixelsPerMm);
+        final int fontSizePx = (int) (fontSizemm * pixelsPerMm);
+        final int maxTextWidthPx = (int) (maxTextWidthmm * pixelsPerMm);
+
+        final Length extent = getFeederExtent();
+        final Length extentMm = extent.convertToUnits(LengthUnit.Millimeters);
+
+        int totalWidthPx = (marginWidthPx * 2) + qrCodeSizePx; // + (int) maxTextWidthPx;
+
+        final int imageHeightpx = qrCodeSizePx + marginWidthPx + (int) (extentMm.getValue() * pixelsPerMm);
+
+        Hashtable<EncodeHintType, ErrorCorrectionLevel> hintMap = new Hashtable<>();
+        hintMap.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M);
+
+        BufferedImage image = new BufferedImage(totalWidthPx, imageHeightpx, BufferedImage.TYPE_3BYTE_BGR); // TYPE_3BYTE_BGR
+                                                                                                            // TYPE_BYTE_BINARY
+        Graphics2D graphics = image.createGraphics();
+
+        Font font = new Font("Arial Black", Font.PLAIN, (int) fontSizePx);
+        graphics.setFont(font);
+        FontMetrics fm = graphics.getFontMetrics(font);
+
+        int max_text_width = fm.stringWidth(getFeederGroupName());
+        for (BlindsFeeder feeder : feeders) {
+            String partId = feeder.getPart().getId();
+            if (partId != null) {
+                if (feeder.getPocketCenterline().getValue() != 0.0) {
+                    int width = fm.stringWidth(partId);
+                    if (width > max_text_width) {
+                        max_text_width = width;
+                    }
+                }
+            }
+        }
+
+        graphics.dispose();
+
+        totalWidthPx += max_text_width + marginWidthPx;
+        image = new BufferedImage(totalWidthPx, imageHeightpx, BufferedImage.TYPE_3BYTE_BGR); // TYPE_3BYTE_BGR
+                                                                                              // TYPE_BYTE_BINARY
+        graphics = image.createGraphics();
+        graphics.setFont(font);
+
+        // Fill with black border
+        graphics.setBackground(Color.BLACK);
+        graphics.setPaint(new Color(255, 255, 255));
+        graphics.fillRect(borderWidthPx, borderWidthPx * 1, image.getWidth() - (2 * borderWidthPx),
+                image.getHeight() - (2 * borderWidthPx));
+
+        // Draw marker at top
+        graphics.setPaint(new Color(0, 0, 0));
+        graphics.fillRect(borderWidthPx * 2, borderWidthPx * 2, image.getWidth() - (borderWidthPx * 4),
+                (borderWidthPx * 3));
+
+        // QRC and text positions. Reverse if ocrMArgin is negative which indicates
+        // identifier on left side of feeder
+        int qrcXPos = marginWidthPx;
+        int txtXPos = qrCodeSizePx + marginWidthPx;
+
+        if (ocrMargin.getValue() < 0) {
+            qrcXPos = image.getWidth() - marginWidthPx - qrCodeSizePx;
+        }
+
+        if (!getFeederGroupName().contentEquals(defaultGroupName)) {
+            com.google.zxing.common.BitMatrix bitMatrix = writer.encode(partId, BarcodeFormat.QR_CODE, qrCodeSizePx,
+                    qrCodeSizePx, hintMap);
+            BufferedImage qrcImage = MatrixToImageWriter.toBufferedImage(bitMatrix);
+            graphics.drawImage(qrcImage, qrcXPos, marginWidthPx, null);
+
+            if (ocrMargin.getValue() < 0) {
+                int txtWidth = fm.stringWidth(getFeederGroupName());
+                txtXPos = image.getWidth() - qrCodeSizePx - marginWidthPx * 2 - txtWidth;
+            }
+
+            graphics.drawString(getFeederGroupName(), txtXPos, marginWidthPx * 4);
+        }
+
+        // Create QRC and draw it onto image together with text part identifier.
+        for (BlindsFeeder feeder : feeders) {
+            String partId = feeder.getPart().getId();
+            if (partId != null) {
+                com.google.zxing.common.BitMatrix bitMatrix = writer.encode(partId, BarcodeFormat.QR_CODE, qrCodeSizePx,
+                        qrCodeSizePx, hintMap);
+                BufferedImage qrcImage = MatrixToImageWriter.toBufferedImage(bitMatrix);
+
+                double centerline = feeder.getPocketCenterline().convertToUnits(LengthUnit.Millimeters).getValue();
+                if (centerline != 0.0) {
+                    int imagePosPx = ((int) (centerline * pixelsPerMm)) + (qrCodeSizePx / 2);
+                    graphics.drawImage(qrcImage, qrcXPos, imagePosPx, null);
+
+                    if (ocrMargin.getValue() < 0) {
+                        int txtWidth = fm.stringWidth(partId);
+                        txtXPos = image.getWidth() - qrCodeSizePx - marginWidthPx * 2 - txtWidth;
+                    }
+
+                    graphics.drawString(partId, txtXPos, imagePosPx + qrCodeSizePx / 2);
+
+                }
+            }
+        }
+
+        if (file == null) {
+            file = Configuration.get().createResourceFile(getClass(), "blinds-feeder-qrc", ".png");
+        }
+
+        // Write image together with pixel density metadata so it will print at the
+        // correct scale.
+        final String formatName = "png";
+        for (Iterator<ImageWriter> iw = ImageIO.getImageWritersByFormatName(formatName); iw.hasNext();) {
+            ImageWriter imgWriter = iw.next();
+            ImageWriteParam writeParam = imgWriter.getDefaultWriteParam();
+            ImageTypeSpecifier typeSpecifier = ImageTypeSpecifier
+                    .createFromBufferedImageType(BufferedImage.TYPE_INT_RGB);
+            IIOMetadata metadata = imgWriter.getDefaultImageMetadata(typeSpecifier, writeParam);
+            if (metadata.isReadOnly() || !metadata.isStandardMetadataFormatSupported()) {
+                continue;
+            }
+
+            IIOMetadataNode horiz = new IIOMetadataNode("HorizontalPixelSize");
+            horiz.setAttribute("value", Double.toString(pixelsPerMm));
+
+            IIOMetadataNode vert = new IIOMetadataNode("VerticalPixelSize");
+            vert.setAttribute("value", Double.toString(pixelsPerMm));
+
+            IIOMetadataNode dim = new IIOMetadataNode("Dimension");
+            dim.appendChild(horiz);
+            dim.appendChild(vert);
+
+            IIOMetadataNode root = new IIOMetadataNode("javax_imageio_1.0");
+            root.appendChild(dim);
+
+            metadata.mergeTree("javax_imageio_1.0", root);
+
+            final ImageOutputStream stream = ImageIO.createImageOutputStream(file);
+            try {
+                imgWriter.setOutput(stream);
+                imgWriter.write(metadata, new IIOImage(image, null, metadata), writeParam);
+            } finally {
+                stream.close();
+            }
+            break;
+        }
+
+        graphics.dispose();
     }
 
     public void findCoverPosition(Camera camera) throws Exception {

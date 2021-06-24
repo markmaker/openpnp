@@ -42,7 +42,9 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.border.TitledBorder;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.jdesktop.beansbinding.AutoBinding.UpdateStrategy;
 import org.openpnp.gui.MainFrame;
@@ -102,6 +104,7 @@ public class BlindsFeederArrayConfigurationWizard extends AbstractConfigurationW
     private JLabel lblOcrTextOrientation;
     private JComboBox ocrTextOrientation;
     private JButton btnSetOcrSettings;
+    private JButton btnGenerateQRC;
 
     private JPanel panelArray;
     private JLabel label;
@@ -306,6 +309,9 @@ public class BlindsFeederArrayConfigurationWizard extends AbstractConfigurationW
         btnSetOcrSettings = new JButton(setOcrSettingsToAllAction);
         panelVision.add(btnSetOcrSettings, "8, 4");
 
+        btnGenerateQRC = new JButton(generateQRCAction);
+        panelVision.add(btnGenerateQRC, "8, 2");
+        
         lblOcrTextOrientation = new JLabel("OCR Text Orientation");
         panelVision.add(lblOcrTextOrientation, "2, 6, right, default");
 
@@ -568,5 +574,63 @@ public class BlindsFeederArrayConfigurationWizard extends AbstractConfigurationW
     private void setPipelineToAllFeeders() throws CloneNotSupportedException {
         feeder.setPipelineToAllFeeders();
     }
+    
+    private Action generateQRCAction =
+            new AbstractAction("Generate QRC Image", Icons.export) {
+        {
+            putValue(Action.SHORT_DESCRIPTION,
+                    "Make QRC image for this feeder and all connected feeders.");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            UiUtils.messageBoxOnException(() -> {
+                JFileChooser j = new JFileChooser(){
+                    @Override
+                    public void approveSelection(){
+                        File f = getSelectedFile();
+                        if(f.exists() && getDialogType() == SAVE_DIALOG){
+                            int result = JOptionPane.showConfirmDialog(this,"The file exists, overwrite?","Existing file",JOptionPane.YES_NO_CANCEL_OPTION);
+                            switch(result){
+                                case JOptionPane.YES_OPTION:
+                                    super.approveSelection();
+                                    return;
+                                case JOptionPane.CANCEL_OPTION:
+                                    cancelSelection();
+                                    return;
+                                default:
+                                    return;
+                                    
+                            }
+                        }
+                        super.approveSelection();
+                    }
+                };
+                
+                FileNameExtensionFilter filter = new FileNameExtensionFilter(
+                        "PNG Image", "png");
+                //j.setSelectedFile(directory);
+                j.setFileFilter(filter);
+                j.setFileSelectionMode(JFileChooser.FILES_ONLY);
+                j.setMultiSelectionEnabled(false);
+                j.setSelectedFile(new File(feeder.getFeederGroupName() + ".png"));
+                if (j.showSaveDialog(getTopLevelAncestor()) == JFileChooser.APPROVE_OPTION) {
+                    File file = j.getSelectedFile();
+
+                    String fname = file.getAbsolutePath();
+
+                    if(!fname.endsWith(".png") ) {
+                        file = new File(fname + ".png");
+                    }
+                    
+                    String dpiStr = JOptionPane.showInputDialog("Set printer DPI", new String("600") );
+                    int dpi = Integer.parseInt(dpiStr);
+
+                    feeder.generatePartNumberQRCodeImage(file, dpi);
+                }
+            });
+        }
+    };
+
 }
 
