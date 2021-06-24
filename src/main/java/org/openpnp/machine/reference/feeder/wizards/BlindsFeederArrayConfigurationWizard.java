@@ -575,7 +575,6 @@ public class BlindsFeederArrayConfigurationWizard extends AbstractConfigurationW
         feeder.setPipelineToAllFeeders();
     }
     
-
     private Action generateQRCAction =
             new AbstractAction("Generate QRC Image", Icons.export) {
         {
@@ -586,13 +585,35 @@ public class BlindsFeederArrayConfigurationWizard extends AbstractConfigurationW
         @Override
         public void actionPerformed(ActionEvent e) {
             UiUtils.messageBoxOnException(() -> {
-                JFileChooser j = new JFileChooser();
+                JFileChooser j = new JFileChooser(){
+                    @Override
+                    public void approveSelection(){
+                        File f = getSelectedFile();
+                        if(f.exists() && getDialogType() == SAVE_DIALOG){
+                            int result = JOptionPane.showConfirmDialog(this,"The file exists, overwrite?","Existing file",JOptionPane.YES_NO_CANCEL_OPTION);
+                            switch(result){
+                                case JOptionPane.YES_OPTION:
+                                    super.approveSelection();
+                                    return;
+                                case JOptionPane.CANCEL_OPTION:
+                                    cancelSelection();
+                                    return;
+                                default:
+                                    return;
+                                    
+                            }
+                        }
+                        super.approveSelection();
+                    }
+                };
+                
                 FileNameExtensionFilter filter = new FileNameExtensionFilter(
                         "PNG Image", "png");
                 //j.setSelectedFile(directory);
                 j.setFileFilter(filter);
                 j.setFileSelectionMode(JFileChooser.FILES_ONLY);
                 j.setMultiSelectionEnabled(false);
+                j.setSelectedFile(new File(feeder.getFeederGroupName() + ".png"));
                 if (j.showSaveDialog(getTopLevelAncestor()) == JFileChooser.APPROVE_OPTION) {
                     File file = j.getSelectedFile();
 
