@@ -53,7 +53,7 @@ public class AboutDialog extends JDialog {
         createUi();
 
         try {
-            String s = FileUtils.readFileToString(new File("CHANGES.md"));
+            String s = "# " + Main.getVersion() + "\n\n" + FileUtils.readFileToString(new File("CHANGES.md"));
             releaseNotes.setText(s);
             releaseNotes.setUri(new URI(Main.getSourceUri()+"CHANGES.md"));
         }
