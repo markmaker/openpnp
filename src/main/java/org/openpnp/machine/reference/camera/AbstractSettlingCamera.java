@@ -41,6 +41,7 @@ import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.openpnp.gui.MainFrame;
 import org.openpnp.model.Configuration;
+import org.openpnp.spi.Machine;
 import org.openpnp.spi.MotionPlanner.CompletionType;
 import org.openpnp.spi.base.AbstractCamera;
 import org.openpnp.util.NanosecondTime;
@@ -662,7 +663,7 @@ public abstract class AbstractSettlingCamera extends AbstractCamera {
             }
             if (settleMethod == SettleMethod.FixedTime) {
                 try {
-                    Thread.sleep(getSettleTimeMs());
+                    Machine.dwell(this, getSettleTimeMs());
                 }
                 catch (Exception e) {
 

@@ -54,6 +54,7 @@ import org.openpnp.spi.Camera;
 import org.openpnp.spi.CoordinateAxis;
 import org.openpnp.spi.Head;
 import org.openpnp.spi.HeadMountable;
+import org.openpnp.spi.Machine;
 import org.openpnp.spi.MotionPlanner.CompletionType;
 import org.openpnp.spi.Nozzle;
 import org.openpnp.spi.base.AbstractHead.VisualHomingMethod;
@@ -668,7 +669,7 @@ public class CalibrationSolutions implements Solutions.Subject {
         Location timedLocation = displacedAxisLocation(movable, axis, location, -backlashTestMoveMm*mmAxis, false);
         double dtBaseline;
         { 
-            Thread.sleep(machineSettleMs);
+            Machine.dwell(this, machineSettleMs);
             double t0 = NanosecondTime.getRuntimeSeconds();
             movable.moveTo(timedLocation, 1.0);
             movable.waitForCompletion(CompletionType.WaitForStillstand);
@@ -679,7 +680,7 @@ public class CalibrationSolutions implements Solutions.Subject {
         }
         for (double speed : backlashProbingSpeeds) {
             { 
-                Thread.sleep(machineSettleMs);
+                Machine.dwell(this, machineSettleMs);
                 double t0 = NanosecondTime.getRuntimeSeconds();
                 movable.moveTo(timedLocation, speed);
                 movable.waitForCompletion(CompletionType.WaitForStillstand);
@@ -687,7 +688,7 @@ public class CalibrationSolutions implements Solutions.Subject {
                 speedGraph.getRow(VELOCITY, VELOCITY+1).recordDataPoint(speed, dtBaseline/(t1-t0));
             }
             {
-                Thread.sleep(machineSettleMs);
+                Machine.dwell(this, machineSettleMs);
                 double t0 = NanosecondTime.getRuntimeSeconds();
                 movable.moveTo(location, speed);
                 movable.waitForCompletion(CompletionType.WaitForStillstand);
@@ -800,7 +801,7 @@ public class CalibrationSolutions implements Solutions.Subject {
                         }
                         MovableUtils.moveToLocationAtSafeZ(movable, displacedAxisLocation, minimumSpeed);
                         movable.waitForCompletion(CompletionType.WaitForStillstand);
-                        Thread.sleep(machineSettleMs);
+                        Machine.dwell(this, machineSettleMs);
                         double t0 = NanosecondTime.getRuntimeSeconds();
                         movable.moveTo(location);
                         movable.waitForCompletion(CompletionType.WaitForStillstand);
@@ -833,7 +834,7 @@ public class CalibrationSolutions implements Solutions.Subject {
                         }
                         MovableUtils.moveToLocationAtSafeZ(movable, displacedAxisLocation, minimumSpeed);
                         movable.waitForCompletion(CompletionType.WaitForStillstand);
-                        Thread.sleep(machineSettleMs);
+                        Machine.dwell(this, machineSettleMs);
                         double t0 = NanosecondTime.getRuntimeSeconds();
                         movable.moveTo(location);
                         movable.waitForCompletion(CompletionType.WaitForStillstand);
@@ -1143,11 +1144,11 @@ public class CalibrationSolutions implements Solutions.Subject {
                 nozzle.moveToPickLocation(feeder);
                 nozzle.pick(testPart);
                 // Extra wait time.
-                Thread.sleep(extraVacuumDwellMs);
+                Machine.dwell(this, extraVacuumDwellMs);
                 nozzle.moveToPlacementLocation(placementLocation, testPart);
                 nozzle.place();
                 // Extra wait time.
-                Thread.sleep(extraVacuumDwellMs);
+                Machine.dwell(this, extraVacuumDwellMs);
                 // Look where it is now.
                 MovableUtils.moveToLocationAtSafeZ(defaultCamera, location);
                 Location newlocation = machine.getVisionSolutions()

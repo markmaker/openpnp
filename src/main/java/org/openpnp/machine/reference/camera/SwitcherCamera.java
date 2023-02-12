@@ -24,7 +24,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.openpnp.gui.support.Wizard;
@@ -35,6 +34,7 @@ import org.openpnp.spi.Camera;
 import org.openpnp.spi.Machine;
 import org.openpnp.spi.PropertySheetHolder;
 import org.openpnp.spi.base.AbstractActuator;
+import org.openpnp.spi.base.AbstractMachine;
 import org.pmw.tinylog.Logger;
 import org.simpleframework.xml.Attribute;
 
@@ -125,7 +125,7 @@ public class SwitcherCamera extends ReferenceCamera {
                         if (this != switchedCamera) {
                             return null;
                         }
-                        Thread.sleep(actuatorDelayMillis);
+                        Machine.dwell(this, actuatorDelayMillis);
                         // Succeeded, set the new state.
                         switchers.put(switcher, this);
                     }

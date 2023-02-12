@@ -73,6 +73,11 @@ public class TestDriver extends AbstractDriver implements Driver {
     }
 
     @Override
+    public String actuatorRead(Actuator actuator, Object parameter) throws Exception {
+        return null;
+    }
+
+    @Override
     public void setEnabled(boolean enabled) throws Exception {
         delegate.setEnabled(enabled);
     }
@@ -112,6 +117,11 @@ public class TestDriver extends AbstractDriver implements Driver {
         @Override
         public void actuate(Actuator actuator, double value) throws Exception {
 
+        }
+
+        @Override
+        public String actuatorRead(Actuator actuator, Object parameter) throws Exception {
+            return null;
         }
 
         @Override

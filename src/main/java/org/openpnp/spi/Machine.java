@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
+import org.openpnp.model.Configuration;
 import org.openpnp.model.Length;
 import org.openpnp.model.Location;
 import org.openpnp.model.Solutions;
@@ -171,6 +172,10 @@ public interface Machine extends WizardConfigurable, PropertySheetHolder, Closea
     public void addListener(MachineListener listener);
 
     public void removeListener(MachineListener listener);
+
+    public void addBackgroundAction(MachineBackgroundAction action);
+
+    public void removeBackgroundAction(MachineBackgroundAction action);
 
     public List<Class<? extends Axis>> getCompatibleAxisClasses();
 
@@ -331,6 +336,26 @@ public interface Machine extends WizardConfigurable, PropertySheetHolder, Closea
      * @return True if a machine task is currently running/pending.
      */
     public boolean isBusy();
+
+    /**
+     * Dwell for the number of milliseconds. The dwell is carried out as thread sleep/yield, with possible 
+     * background polling tasks being scheduled.
+     * 
+     * @param cause cause of the dwell, for statistics
+     * @param milliseconds
+     */
+    public void dwellMachine(Solutions.Subject cause, long milliseconds);
+
+    /**
+     * Dwell for the number of milliseconds. The dwell is carried out as thread sleep/yield, with possible 
+     * background polling tasks being scheduled. This is a static convenience method to get the machine.
+     * 
+     * @param cause cause of the dwell, for statistics
+     * @param milliseconds
+     */
+    public static void dwell(Solutions.Subject cause, long milliseconds) {
+        Configuration.get().getMachine().dwellMachine(null, milliseconds);
+    }
 
     public Head getDefaultHead() throws Exception;
 

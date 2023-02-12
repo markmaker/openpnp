@@ -34,13 +34,13 @@ import javax.swing.Action;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
-import javax.swing.border.EtchedBorder;
 import javax.swing.border.TitledBorder;
 
 import org.jdesktop.beansbinding.AbstractBindingListener;
@@ -72,8 +72,6 @@ import com.jgoodies.forms.layout.ColumnSpec;
 import com.jgoodies.forms.layout.FormLayout;
 import com.jgoodies.forms.layout.FormSpecs;
 import com.jgoodies.forms.layout.RowSpec;
-import javax.swing.SwingConstants;
-import javax.swing.JCheckBox;
 
 @SuppressWarnings("serial")
 public class ReferenceHeapFeederConfigurationWizard
@@ -657,7 +655,7 @@ public class ReferenceHeapFeederConfigurationWizard
         public void actionPerformed(ActionEvent e) {
             UiUtils.submitUiMachineTask(() -> {
                 //Feeder feeder = getSelection();
-                feeder.getDropBox().clean(Configuration.get().getMachine().getHeads().get(0).getDefaultNozzle());
+                feeder.getDropBox().clean(feeder, Configuration.get().getMachine().getHeads().get(0).getDefaultNozzle());
                 });
         }
     };

@@ -7,14 +7,16 @@ import org.openpnp.gui.support.MessageBoxes;
 import org.openpnp.gui.support.Wizard;
 import org.openpnp.machine.neoden4.wizards.Neoden4SignalerConfigurationWizard;
 import org.openpnp.model.Configuration;
+import org.openpnp.model.Solutions;
 import org.openpnp.spi.Driver;
+import org.openpnp.spi.Machine;
 import org.openpnp.spi.base.AbstractJobProcessor;
 import org.openpnp.spi.base.AbstractMachine;
 import org.openpnp.spi.base.AbstractSignaler;
 import org.pmw.tinylog.Logger;
 import org.simpleframework.xml.Attribute;
 
-public class Neoden4Signaler extends AbstractSignaler implements Runnable {
+public class Neoden4Signaler extends AbstractSignaler implements Runnable, Solutions.Subject {
 
     @Attribute
     protected boolean enableErrorSound;
@@ -60,7 +62,7 @@ public class Neoden4Signaler extends AbstractSignaler implements Runnable {
 					// Decrease interval between signals
 					sleepTime /= 1.2;
 					this.playSound(2, 250);
-					Thread.sleep(sleepTime);
+					Machine.dwell(this, sleepTime);
 				} 
 				else if (playSuccess) {
 					if (lastPlaySuccess != playSuccess) {
@@ -78,7 +80,7 @@ public class Neoden4Signaler extends AbstractSignaler implements Runnable {
 					}
 					sleepTime /= 1.2;
 					this.playSound(3, 30);
-					Thread.sleep(sleepTime);
+					Machine.dwell(this, sleepTime);
 				}
 			} 
 			catch (Exception e) {
@@ -106,9 +108,9 @@ public class Neoden4Signaler extends AbstractSignaler implements Runnable {
 
 		for (int i = 0; i < times; i++) {
 			neoden4Driver.setBuzzer(true);
-			Thread.sleep(delay);
+			Machine.dwell(this, delay);
 			neoden4Driver.setBuzzer(false);
-			Thread.sleep(delay);
+			Machine.dwell(this, delay);
 		}
 	}
 

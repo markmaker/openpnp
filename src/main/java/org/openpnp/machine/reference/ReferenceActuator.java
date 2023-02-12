@@ -21,6 +21,8 @@ package org.openpnp.machine.reference;
 
 import java.awt.event.ActionEvent;
 import java.util.ArrayList;
+import java.util.Map.Entry;
+import java.util.TreeMap;
 
 import javax.swing.AbstractAction;
 import javax.swing.Action;
@@ -42,12 +44,15 @@ import org.openpnp.spi.Machine;
 import org.openpnp.spi.MachineListener;
 import org.openpnp.spi.PropertySheetHolder;
 import org.openpnp.spi.base.AbstractActuator;
+import org.openpnp.util.NanosecondTime;
 import org.openpnp.util.UiUtils;
 import org.pmw.tinylog.Logger;
 import org.simpleframework.xml.Attribute;
 import org.simpleframework.xml.Element;
 
 public class ReferenceActuator extends AbstractActuator implements ReferenceHeadMountable {
+
+    private static final double READ_HISTORY_SECONDS = 300.0;
 
     @Element
     private Location headOffsets = new Location(LengthUnit.Millimeters);
@@ -70,6 +75,9 @@ public class ReferenceActuator extends AbstractActuator implements ReferenceHead
 
     @Attribute
     private int index;
+
+    @Attribute(required = false)
+    private int pollingIntervalMilliseconds = 0;
 
     @Deprecated
     @Element(required = false)
@@ -147,6 +155,8 @@ public class ReferenceActuator extends AbstractActuator implements ReferenceHead
     @Element(required = false)
     private ReferenceActuatorProfiles actuatorProfiles;
 
+    private TreeMap<Double, String> recordedReadValues = new TreeMap<>();
+
     @Override
     public Object getLastActuationValue() {
         return lastActuationValue;
@@ -159,6 +169,28 @@ public class ReferenceActuator extends AbstractActuator implements ReferenceHead
         if (oldValue == null || !oldValue.equals(lastActuationValue)) {
             getMachine().fireMachineActuatorActivity(this);
         }
+    }
+
+    @Override
+    public boolean isDueForPolling() {
+        if (pollingIntervalMilliseconds > 0) {
+            Double t = getLastReadTime();
+            return (t == null || t < NanosecondTime.getRuntimeSeconds() - pollingIntervalMilliseconds*1e-3);
+        }
+        return false;
+    }
+
+    public int getPollingIntervalMilliseconds() {
+        return pollingIntervalMilliseconds;
+    }
+
+    public void setPollingIntervalMilliseconds(int pollingIntervalMilliseconds) {
+        this.pollingIntervalMilliseconds = pollingIntervalMilliseconds;
+    }
+
+    public Double getLastReadTime() {
+        Entry<Double, String> entry = getLastRecordedValue();
+        return entry != null ? entry.getKey() : null;
     }
 
     @Override
@@ -323,16 +355,54 @@ public class ReferenceActuator extends AbstractActuator implements ReferenceHead
         }
     }
 
+    private void setLastReadValue(String value) {
+        double t = NanosecondTime.getRuntimeSeconds();
+        synchronized (recordedReadValues) {
+            recordedReadValues.put(t, value);
+            // Cleanup oldest entries.
+            Double oldest;
+            while ((oldest = recordedReadValues.firstKey()) != null) {
+                if (oldest < t - READ_HISTORY_SECONDS) {
+                    recordedReadValues.remove(oldest);
+                }
+                else {
+                    break;
+                }
+            }
+        }
+    }
+
+    public TreeMap<Double, String> getRecordedReadValues() {
+        synchronized (recordedReadValues) {
+            // Make a full momentary copy to prevent any synchronization issues.
+            return new TreeMap<Double, String>(recordedReadValues);
+        }
+    }
+
+    protected Entry<Double, String> getLastRecordedValue() {
+        synchronized (recordedReadValues) {
+            return recordedReadValues.lastEntry();
+        }
+    }
+
     @Override
     public String read() throws Exception {
         if (isCoordinatedBeforeRead()) {
             coordinateWithMachine(false);
         }
-        String value = getDriver().actuatorRead(this);
-        Logger.debug("{}.read(): {}", getName(), value);
-        if (isCoordinatedAfterActuate()) {
-            coordinateWithMachine(true);
+        if (pollingIntervalMilliseconds > 0) {
+            Entry<Double, String> lastEntry = getLastRecordedValue();
+            double t = NanosecondTime.getRuntimeSeconds();
+            if (lastEntry.getKey() > t - 1.5*pollingIntervalMilliseconds*1e-3) {
+                // We already got a fresh enough read.
+                String value = lastEntry.getValue();
+                Logger.debug("{}.read() (from recorded values): {}", getName(), value);
+                return value;
+            }
         }
+        String value = getDriver().actuatorRead(this);
+        setLastReadValue(value);
+        Logger.debug("{}.read(): {}", getName(), value);
         getMachine().fireMachineHeadActivity(head);
         return value;
     }

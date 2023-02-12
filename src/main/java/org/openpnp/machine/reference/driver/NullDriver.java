@@ -137,7 +137,7 @@ public class NullDriver extends AbstractDriver {
         while (! machine.getMotionPlanner()
                 .getMomentaryMotion(NanosecondTime.getRuntimeSeconds())
                 .hasOption(Motion.MotionOption.Stillstand)) {
-            Thread.sleep(1);
+            Machine.dwell(this, 1);
         }
         motionPending = false;
     }
@@ -172,12 +172,12 @@ public class NullDriver extends AbstractDriver {
         Logger.debug("actuate({}, {})", actuator, value); //$NON-NLS-1$
         checkEnabled();
         if (feedRateMmPerMinute > 0) {
-            Thread.sleep(10);
+            Machine.dwell(actuator, 10);
         }
     }
 
     @Override
-    public String actuatorRead(Actuator actuator) throws Exception {
+    public String actuatorRead(Actuator actuator, Object parameter) throws Exception {
         return Math.random() + ""; //$NON-NLS-1$
     }
 

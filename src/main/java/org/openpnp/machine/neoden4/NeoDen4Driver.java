@@ -23,11 +23,10 @@ import org.openpnp.spi.ControllerAxis;
 import org.openpnp.spi.HeadMountable;
 import org.openpnp.spi.Machine;
 import org.openpnp.spi.MotionPlanner.CompletionType;
+import org.openpnp.util.Utils2D;
 import org.pmw.tinylog.Logger;
 import org.simpleframework.xml.Attribute;
 import org.simpleframework.xml.Root;
-
-import org.openpnp.util.Utils2D;
 
 @Root
 public class NeoDen4Driver extends AbstractReferenceDriver {
@@ -456,7 +455,7 @@ public class NeoDen4Driver extends AbstractReferenceDriver {
             {
                 moveZ(index, 0);
                 this.z[index] = 0;
-                Thread.sleep(300);
+                Machine.dwell(this, 300);
             }
         }
     }
@@ -508,7 +507,7 @@ public class NeoDen4Driver extends AbstractReferenceDriver {
     private Boolean waitForStatusReady(int sleepMilliS, int maxMilliS) throws Exception {
         int totalWaitMilliS = 0;
         do {
-            Thread.sleep(sleepMilliS);
+            Machine.dwell(this, sleepMilliS);
             totalWaitMilliS += sleepMilliS;
 
             if (totalWaitMilliS >= maxMilliS) {
@@ -620,10 +619,10 @@ public class NeoDen4Driver extends AbstractReferenceDriver {
                 break;
             }
             catch (Exception e){
-                Thread.sleep(1000);
+                Machine.dwell(this, 1000);
                 flushInput();
                 Logger.warn("Recovered feed");
-                Thread.sleep(1000);
+                Machine.dwell(this, 1000);
             }
         }
 
@@ -676,10 +675,10 @@ public class NeoDen4Driver extends AbstractReferenceDriver {
                         break;
                     }
                     catch (Exception e){
-                        Thread.sleep(1000);
+                        Machine.dwell(this, 1000);
                         flushInput();
                         Logger.warn("Recovered changeFeederId");
-                        Thread.sleep(1000);
+                        Machine.dwell(this, 1000);
                     }
                 }
                 
@@ -738,10 +737,10 @@ public class NeoDen4Driver extends AbstractReferenceDriver {
                 break;
             }
             catch (Exception e){
-                Thread.sleep(1000);
+                Machine.dwell(this, 1000);
                 flushInput();
                 Logger.warn("Recovered peel");
-                Thread.sleep(1000);
+                Machine.dwell(this, 1000);
             }
         }
 
@@ -785,7 +784,7 @@ public class NeoDen4Driver extends AbstractReferenceDriver {
         }
 
         if(isDelayNeeded) {
-            Thread.sleep(100);
+            Machine.dwell(this, 100);
             isDelayNeeded = false;
         }
 
@@ -807,7 +806,7 @@ public class NeoDen4Driver extends AbstractReferenceDriver {
         }
 
         if(isDelayNeeded) {
-            Thread.sleep(100);
+            Machine.dwell(this, 100);
             isDelayNeeded = false;
         }
 
@@ -835,7 +834,7 @@ public class NeoDen4Driver extends AbstractReferenceDriver {
         }
 
         if(isDelayNeeded) {
-           Thread.sleep(100);
+           Machine.dwell(this, 100);
         }
 
         // Store the new location to the axes.
@@ -860,9 +859,9 @@ public class NeoDen4Driver extends AbstractReferenceDriver {
                 break;
             }
             catch (Exception e){
-                Thread.sleep(1000);
+                Machine.dwell(this, 1000);
                 flushInput();
-                Thread.sleep(1000);
+                Machine.dwell(this, 1000);
                 Logger.warn("Recovered moveTo");
             }
         }
@@ -895,7 +894,7 @@ public class NeoDen4Driver extends AbstractReferenceDriver {
                     actuate(actuator, -128.0);
                 } else {
                     actuate(actuator, 20.0);
-                    Thread.sleep(100);
+                    Machine.dwell(actuator, 100);
                     actuate(actuator, 0.0);
                 }
                 break;
@@ -906,7 +905,7 @@ public class NeoDen4Driver extends AbstractReferenceDriver {
             case ACT_N4_BLOW: {
                 if (on) {
 //                    actuate(actuator, 127.0);
-//                    Thread.sleep(400);
+//                    Machine.dwell(actuator, 400);
 //                    actuate(actuator, 0.0);
                 } else {
                 }
@@ -1148,10 +1147,10 @@ public class NeoDen4Driver extends AbstractReferenceDriver {
         		break;
         	}
         	catch (Exception e){
-        		Thread.sleep(1000);
+        		Machine.dwell(actuator, 1000);
         		flushInput();
         		Logger.warn(String.format("actuate: try %d, exception %s, [%s]", i, e.toString(), actuator.toString()));
-        		Thread.sleep(1000);
+        		Machine.dwell(actuator, 1000);
         	}
     	}
     	
@@ -1183,10 +1182,10 @@ public class NeoDen4Driver extends AbstractReferenceDriver {
                 success = true;
                 break;
             }catch (Exception e) {
-                Thread.sleep(1000);
+                Machine.dwell(this, 1000);
                 flushInput();
                 Logger.warn("Recovered getNozzleAirValue");
-                Thread.sleep(1000);
+                Machine.dwell(this, 1000);
             }
         }
 
@@ -1211,7 +1210,7 @@ public class NeoDen4Driver extends AbstractReferenceDriver {
     }
 
     @Override
-    public String actuatorRead(Actuator actuator) throws Exception {
+    public String actuatorRead(Actuator actuator, Object parameter) throws Exception {
         switch (actuator.getName()) {
             case ACT_N1_BLOW:
             case ACT_N1_VACUUM: {

@@ -149,7 +149,7 @@ import org.openpnp.spi.MotionPlanner.CompletionType;
      * @throws Exception
      */
     public default String actuatorRead(Actuator actuator) throws Exception {
-        return null;
+        return actuatorRead(actuator, null);
     }
 
     /**
@@ -160,9 +160,7 @@ import org.openpnp.spi.MotionPlanner.CompletionType;
      * @return 
      * @throws Exception
      */
-    public default String actuatorRead(Actuator actuator, Object parameter) throws Exception {
-        return null;
-    }
+    public String actuatorRead(Actuator actuator, Object parameter) throws Exception;
 
     /**
      * Attempts to enable the Driver, turning on all outputs.

@@ -59,6 +59,7 @@ import org.openpnp.model.Location;
 import org.openpnp.model.Motion.MoveToCommand;
 import org.openpnp.model.Named;
 import org.openpnp.model.Solutions;
+import org.openpnp.model.Solutions.Subject;
 import org.openpnp.spi.Actuator;
 import org.openpnp.spi.Axis.Type;
 import org.openpnp.spi.Camera;
@@ -66,6 +67,7 @@ import org.openpnp.spi.ControllerAxis;
 import org.openpnp.spi.Head;
 import org.openpnp.spi.HeadMountable;
 import org.openpnp.spi.Machine;
+import org.openpnp.spi.MachineBackgroundAction;
 import org.openpnp.spi.MotionPlanner.CompletionType;
 import org.openpnp.spi.Nozzle;
 import org.openpnp.spi.base.AbstractAxis;
@@ -320,6 +322,31 @@ public class GcodeDriver extends AbstractReferenceDriver implements Named {
     protected LinkedBlockingQueue<Line> responseQueue = new LinkedBlockingQueue<>();
     protected LinkedBlockingQueue<AxesLocation> reportedLocationsQueue = new LinkedBlockingQueue<>();
     protected LinkedBlockingQueue<Line> receivedConfirmationsQueue = new LinkedBlockingQueue<>();
+    final protected MachineBackgroundAction backgroundAction = new MachineBackgroundAction() {
+        @Override
+        public boolean run(Machine machine, Subject dwellCause) {
+            // Check all actuators that should be polled by this driver and add all their compressed
+            // commands to a set, to eliminate duplicates, as read commands are often the same.
+            Set<String> commands = new HashSet<>();
+            for (Actuator actuator : machine.getAllActuators()) {
+                if (actuator.getDriver() == GcodeDriver.this
+                        && actuator.isDueForPolling()) {
+                    String command = getPreparedActuatorReadCommand(actuator, null);
+                    command = preProcessCommand(command);
+                    commands.add(command);
+                }
+            }
+            for (String command : commands) {
+                try {
+                    sendCommand(command);
+                }
+                catch (Exception e) {
+                    Logger.warn(e, "Polling actuators failed.");
+                }
+            }
+            return !commands.isEmpty();
+        }
+    };
 
     protected Line errorResponse;
     private boolean motionPending;
@@ -368,7 +395,7 @@ public class GcodeDriver extends AbstractReferenceDriver implements Named {
 
         connectThreads();
 
-        // Wait a bit while the controller starts up
+        // Wait a bit while the controller starts up (we must not use Machine.dwell() here).
         Thread.sleep(connectWaitTimeMilliseconds);
 
         // Consume any startup messages
@@ -386,6 +413,9 @@ public class GcodeDriver extends AbstractReferenceDriver implements Named {
 
         // Send startup Gcode
         sendGcode(getCommand(null, CommandType.CONNECT_COMMAND));
+        
+        // Register background actions.
+        Configuration.get().getMachine().addBackgroundAction(backgroundAction);
 
         connected = true;
     }
@@ -966,23 +996,9 @@ public class GcodeDriver extends AbstractReferenceDriver implements Named {
          * not fire and forget. In this case, we need to know if the command was serviced or not
          * and throw an Exception if not.
          */
-        String command = getCommand(actuator, CommandType.ACTUATOR_READ_COMMAND);
+        String command = getPreparedActuatorReadCommand(actuator, parameter);
         String regex = getCommand(actuator, CommandType.ACTUATOR_READ_REGEX);
         if (command != null && regex != null) {
-            command = substituteVariable(command, "Id", actuator.getId());
-            command = substituteVariable(command, "Name", actuator.getName());
-            if (actuator instanceof ReferenceActuator) {
-                command = substituteVariable(command, "Index", ((ReferenceActuator)actuator).getIndex());
-            }
-            if (parameter != null) {
-                if (parameter instanceof Double) { // Backwards compatibility
-                    Double doubleParameter = (Double) parameter;
-                    command = substituteVariable(command, "DoubleValue", doubleParameter);
-                    command = substituteVariable(command, "IntegerValue", (int) doubleParameter.doubleValue());
-                }
-
-                command = substituteVariable(command, "Value", parameter);
-            }
             sendGcode(command);
             List<Line> responses = receiveResponses(regex, timeoutMilliseconds, (r) -> {
                 throw new Exception(String.format("Actuator \"%s\" read error: No matching responses found.", actuator.getName()));
@@ -1014,12 +1030,31 @@ public class GcodeDriver extends AbstractReferenceDriver implements Named {
         }
     }
 
-    @Override
-    public String actuatorRead(Actuator actuator) throws Exception {
-        return actuatorRead(actuator, null);
+    protected String getPreparedActuatorReadCommand(Actuator actuator, Object parameter) {
+        String command = getCommand(actuator, CommandType.ACTUATOR_READ_COMMAND);
+        if (command != null) {
+            command = substituteVariable(command, "Id", actuator.getId());
+            command = substituteVariable(command, "Name", actuator.getName());
+            if (actuator instanceof ReferenceActuator) {
+                command = substituteVariable(command, "Index", ((ReferenceActuator)actuator).getIndex());
+            }
+            if (parameter != null) {
+                if (parameter instanceof Double) { // Backwards compatibility
+                    Double doubleParameter = (Double) parameter;
+                    command = substituteVariable(command, "DoubleValue", doubleParameter);
+                    command = substituteVariable(command, "IntegerValue", (int) doubleParameter.doubleValue());
+                }
+
+                command = substituteVariable(command, "Value", parameter);
+            }
+        }
+        return command;
     }
 
     public synchronized void disconnect() {
+        // Unregister background actions.
+        Configuration.get().getMachine().removeBackgroundAction(backgroundAction);
+
         disconnectRequested = true;
         connected = false;
 
@@ -1109,6 +1144,8 @@ public class GcodeDriver extends AbstractReferenceDriver implements Named {
         }
         waitForConfirmation(command, timeout);
         if (command.startsWith("$")) {
+            // Note, this is specifically a plain Thread.sleep() and not an Machine.dwell() call, we want
+            // no background actions to interfere.
             Thread.sleep(dollarWaitTimeMilliseconds);
         }
     }

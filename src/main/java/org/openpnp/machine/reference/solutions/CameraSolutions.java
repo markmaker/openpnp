@@ -379,14 +379,14 @@ public class CameraSolutions implements Solutions.Subject  {
         // Capture a reference image.
         if (!exposureProperty.isAuto()) {
             exposureProperty.setAuto(true);
-            Thread.sleep(adaptMilliseconds);
+            Machine.dwell(this, adaptMilliseconds);
         }
         BufferedImage frame0 = camera.lightSettleAndCapture();
         SwingUtilities.invokeLater(() -> cameraView.showFilteredImage(frame0, "Auto Exposure", adaptMilliseconds*3));
         long [][] autoHistogram = VisionUtils.computeImageHistogramHsv(frame0);
         // Switch off Auto, and increase the manual value, until it best matches the Auto exposed.
         exposureProperty.setAuto(false);
-        Thread.sleep(adaptMilliseconds); // sleep more for initial auto exposure
+        Machine.dwell(this, adaptMilliseconds); // sleep more for initial auto exposure
         int bestValue = exposureProperty.getDefault();
         long bestDiff = Long.MAX_VALUE;
         int expMin = exposureProperty.getMin();
@@ -397,7 +397,7 @@ public class CameraSolutions implements Solutions.Subject  {
                 step++) {
             int value = expMin + step*(expMax - expMin)/steps;
             exposureProperty.setValue(value);
-            Thread.sleep(adaptMilliseconds);
+            Machine.dwell(this, adaptMilliseconds);
             BufferedImage frame = camera.lightSettleAndCapture();
             final String msg = "Exposure "+value+" (probe "+(step+1)+"/"+(steps+1)+")";
             SwingUtilities.invokeLater(() -> cameraView.showFilteredImage(frame, msg, adaptMilliseconds*2));
@@ -412,7 +412,7 @@ public class CameraSolutions implements Solutions.Subject  {
             }
         }
         exposureProperty.setValue(bestValue);
-        Thread.sleep(adaptMilliseconds);
+        Machine.dwell(this, adaptMilliseconds);
         BufferedImage frame1 = camera.lightSettleAndCapture();
         final String msg = "Exposure "+bestValue+" (set)";
         SwingUtilities.invokeLater(() -> cameraView.showFilteredImage(frame1, msg, 4000));
@@ -553,7 +553,7 @@ public class CameraSolutions implements Solutions.Subject  {
             Location location0 = location.add(new Location(LengthUnit.Millimeters, settleMoveMm, settleMoveMm, 0, 0)); 
             MovableUtils.moveToLocationAtSafeZ(movable, location);
             machine.getMotionPlanner().waitForCompletion(movable, CompletionType.WaitForStillstand);
-            Thread.sleep(1000);
+            Machine.dwell(this, 1000);
             movable.moveTo(location0);
             movable.moveTo(location);
         }

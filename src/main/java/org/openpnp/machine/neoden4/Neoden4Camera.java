@@ -25,7 +25,7 @@ import org.opencv.core.Mat;
 import org.openpnp.gui.support.Wizard;
 import org.openpnp.machine.neoden4.wizards.Neoden4CameraConfigurationWizard;
 import org.openpnp.machine.reference.camera.ReferenceCamera;
-import org.openpnp.model.Configuration;
+import org.openpnp.spi.Machine;
 import org.openpnp.spi.PropertySheetHolder;
 import org.openpnp.util.OpenCvUtils;
 import org.pmw.tinylog.Logger;
@@ -76,7 +76,7 @@ public class Neoden4Camera extends ReferenceCamera {
 		try {
 			byte[] data = new byte[width * height];
 
-			Thread.sleep(10);
+			Machine.dwell(this, 10);
 			int ret = Neoden4CameraHandler.getInstance().img_readAsy(cameraId, data, data.length, timeout);
 			if (ret != 1) {
 				Logger.error(String.format("img_readAsy() ret = %d, [cameraId:%d]", ret, cameraId));
@@ -97,47 +97,31 @@ public class Neoden4Camera extends ReferenceCamera {
 
 	private void resetCamera() {
 		Logger.trace(String.format("Resetting camera [cameraId:%d]", cameraId));
-		try {
-			Thread.sleep(100);
-			cameraReset();
-			setCameraExposure(lastExposure);
-			setCameraGain(lastGain);
-			Thread.sleep(100);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+		Machine.dwell(this, 100);
+        cameraReset();
+        setCameraExposure(lastExposure);
+        setCameraGain(lastGain);
+        Machine.dwell(this, 100);
 	}
 
 	private synchronized void cameraReset() {
 		Logger.trace(String.format("imgReset() [cameraId:%d]", cameraId));
-		try {
-			Thread.sleep(10);
-			Neoden4CameraHandler.getInstance().img_reset(cameraId);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+		Machine.dwell(this, 10);
+        Neoden4CameraHandler.getInstance().img_reset(cameraId);
 	}
 
 	private synchronized void setCameraExposure(int exposure) {
 		Logger.trace(String.format("imgSetExposure() [cameraId:%d]", cameraId, exposure));
-		try {
-			Thread.sleep(10);
-			Neoden4CameraHandler.getInstance().img_set_exp(cameraId, (short) exposure);
-			lastExposure = exposure;
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+		Machine.dwell(this, 10);
+        Neoden4CameraHandler.getInstance().img_set_exp(cameraId, (short) exposure);
+        lastExposure = exposure;
 	}
 
 	private synchronized void setCameraGain(int gain) {
 		Logger.trace(String.format("imgSetGain() [cameraId:%d, gain:%d]", cameraId, gain));
-		try {
-			Thread.sleep(10);
-			Neoden4CameraHandler.getInstance().img_set_gain(cameraId, (short) gain);
-			lastGain = gain;
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+		Machine.dwell(this, 10);
+        Neoden4CameraHandler.getInstance().img_set_gain(cameraId, (short) gain);
+        lastGain = gain;
 	}
 
 	public synchronized void setCameraExposureAndGain(int exposure, int gain) {

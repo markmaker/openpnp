@@ -430,7 +430,7 @@ public abstract class AbstractHead extends AbstractModelObject implements Head {
                     if (!isCarryingPartOtherThanOn(nozzle)) {
                         pump.actuate(on);
                         if (on) {
-                            Thread.sleep(getPumpOnWaitMilliseconds());
+                            Machine.dwell(pump, getPumpOnWaitMilliseconds());
                         }
                     }
                     break;
@@ -440,7 +440,7 @@ public abstract class AbstractHead extends AbstractModelObject implements Head {
                     if (on) {
                         if (pump.isActuated() == null || !pump.isActuated()) {
                             pump.actuate(on);
-                            Thread.sleep(getPumpOnWaitMilliseconds());
+                            Machine.dwell(pump, getPumpOnWaitMilliseconds());
                         }
                     }
                     break;

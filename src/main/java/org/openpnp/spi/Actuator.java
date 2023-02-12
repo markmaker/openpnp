@@ -173,4 +173,9 @@ public interface Actuator
     }
 
     public InterlockMonitor getInterlockMonitor();
+
+    /**
+     * @return true if the Actuator should be polled in the background handler.
+     */
+    public boolean isDueForPolling();
 }

@@ -1,7 +1,6 @@
 package org.openpnp.spi.base;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -33,6 +32,7 @@ import org.openpnp.spi.Feeder;
 import org.openpnp.spi.Head;
 import org.openpnp.spi.HeadMountable;
 import org.openpnp.spi.Machine;
+import org.openpnp.spi.MachineBackgroundAction;
 import org.openpnp.spi.MachineListener;
 import org.openpnp.spi.MotionPlanner.CompletionType;
 import org.openpnp.spi.NozzleTip;
@@ -46,7 +46,6 @@ import org.simpleframework.xml.ElementList;
 import org.simpleframework.xml.ElementMap;
 import org.simpleframework.xml.core.Commit;
 
-import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.FutureCallback;
 
 public abstract class AbstractMachine extends AbstractModelObject implements Machine {
@@ -101,10 +100,18 @@ public abstract class AbstractMachine extends AbstractModelObject implements Mac
     protected IdentifiableList<NozzleTip> nozzleTips = new IdentifiableList<>();
 
     protected Set<MachineListener> listeners = Collections.synchronizedSet(new HashSet<>());
+    
+    protected Set<MachineBackgroundAction> backgroundActions = Collections.synchronizedSet(new HashSet<>());
 
     protected ThreadPoolExecutor executor;
 
     volatile protected Thread taskThread;
+
+    private double backgroundActionTimeSum;
+
+    private double backgroundActionTimeSquaredSum;
+
+    private long backgroundActionsTimeCount;
 
     protected AbstractMachine() {}
 
@@ -523,6 +530,24 @@ public abstract class AbstractMachine extends AbstractModelObject implements Mac
     }
 
     @Override
+    public void addBackgroundAction(MachineBackgroundAction action) {
+        backgroundActions.add(action);
+    }
+
+    @Override
+    public void removeBackgroundAction(MachineBackgroundAction action) {
+        backgroundActions.remove(action);
+    }
+
+    public boolean fireMachineBackgroundActions(Solutions.Subject cause) {
+        boolean active = false;
+        for (MachineBackgroundAction action : backgroundActions) {
+            active |= action.run(this, cause);
+        }
+        return active;
+    }
+
+    @Override
     public Icon getPropertySheetHolderIcon() {
         return null;
     }
@@ -719,6 +744,61 @@ public abstract class AbstractMachine extends AbstractModelObject implements Mac
     @Override
     public boolean isBusy() {
         return taskThread != null;
+    }
+
+    public double getBackgroundActionMilliseconds() {
+        if (backgroundActionsTimeCount >= 2) {
+            double variance = backgroundActionTimeSquaredSum/(backgroundActionsTimeCount - 1);
+            double scatter = Math.sqrt(variance/Math.sqrt(backgroundActionsTimeCount)); 
+            return backgroundActionTimeSum/backgroundActionsTimeCount
+                    + scatter*1.64; // 95% confidence interval, normal distribution.
+        }
+        else {
+            return 0;
+        }
+    }
+
+    protected void recordBackgroundActionMilliseconds(long milliseconds) {
+        long dt = System.currentTimeMillis() - milliseconds;
+        backgroundActionTimeSum += dt;
+        backgroundActionTimeSquaredSum += dt*dt;
+        backgroundActionsTimeCount++;
+    }
+
+    @Override
+    public void dwellMachine(Solutions.Subject cause, long milliseconds) {
+        if (isTask(Thread.currentThread())) {
+            long t1 = System.currentTimeMillis() + milliseconds;
+            do {
+                long t0 = System.currentTimeMillis();
+                try {
+                    if (t1 - t0 > getBackgroundActionMilliseconds()) {
+                        // Still enough time left to fire background actions.
+                        if (fireMachineBackgroundActions(cause)) {
+                            recordBackgroundActionMilliseconds(t0);
+                        }
+                        else {
+                            Thread.sleep(1);
+                        }
+                    }
+                    else {
+                        // Not enough time left, just sleep the thread.
+                        Thread.sleep(Math.max(0, t1 - t0));
+                    }
+                }
+                catch (InterruptedException e) {
+                }
+            }
+            while (t1 > System.currentTimeMillis());
+        }
+        else {
+            // Not a machine task calling, just sleep.
+            try {
+                Thread.sleep(milliseconds);
+            }
+            catch (InterruptedException e) {
+            }
+        }
     }
 
     @Override

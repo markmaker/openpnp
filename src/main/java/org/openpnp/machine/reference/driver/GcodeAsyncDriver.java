@@ -323,6 +323,8 @@ public class GcodeAsyncDriver extends GcodeDriver {
         commandQueue.offer(commandLine, writerQueueTimeout, TimeUnit.MILLISECONDS);
         if (command.startsWith("$")) {
             waitForEmptyCommandQueue();
+            // Note, this is specifically a plain Thread.sleep() and not an Machine.dwell() call, we want
+            // no background actions to interfere.
             Thread.sleep(dollarWaitTimeMilliseconds);
         }
     }
@@ -348,6 +350,8 @@ public class GcodeAsyncDriver extends GcodeDriver {
             }
             try {
                 Logger.trace("{} wait for empty command queue.", getName());
+                // Note, this is specifically a plain Thread.sleep() and not an Machine.dwell() call, we want
+                // no background actions to interfere.
                 Thread.sleep(10);
             }
             catch (InterruptedException e) {

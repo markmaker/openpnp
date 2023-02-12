@@ -23,6 +23,7 @@ import org.openpnp.model.Named;
 import org.openpnp.model.Part;
 import org.openpnp.spi.Actuator;
 import org.openpnp.spi.Camera;
+import org.openpnp.spi.Machine;
 import org.openpnp.spi.MotionPlanner.CompletionType;
 import org.openpnp.spi.Nozzle;
 import org.openpnp.spi.NozzleTip;
@@ -190,7 +191,7 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
     public void feed(Nozzle nozzle) throws Exception {       
         // there might be foreign parts in the dropBox, clean up first.
         if (dropBox.getLastHeap() != this) {
-            dropBox.clean(nozzle);
+            dropBox.clean(this, nozzle);
         } 
         // now claim the dropBox
         dropBox.setLastHeap(this);
@@ -211,7 +212,7 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
                 return; // found part
             }
             // no part found, try to flip a part by throwing it in the dropBox again
-            if (!dropBox.tryToFlipSomePart(nozzle)) {
+            if (!dropBox.tryToFlipSomePart(this, nozzle)) {
                 if (lastRoundPartsFetched == true) {
                     throw new Exception("Feeder " + getName() + ": Fetching parts failed => feed failed.");
                 } else {
@@ -226,7 +227,7 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
             if (attempt > 0 && attempt % throwAwayDropBoxContentAfterFailedFeeds == 0) {
                 // deny the parts are from this heap => trash
                 dropBox.setLastHeap(null);
-                dropBox.clean(nozzle);
+                dropBox.clean(this, nozzle);
                 dropBox.setLastHeap(this);
             }
         }
@@ -243,7 +244,7 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
      */
     public void getSamples(Nozzle nozzle) throws Exception {       
         // clenaup
-        dropBox.clean(nozzle);
+        dropBox.clean(this, nozzle);
 
         // now claim the dropBox
         dropBox.setLastHeap(this);
@@ -313,7 +314,7 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
             if (Math.abs(readVacuum(nozzle) - baseLevel) < requiredVacuumDifference) {
                 return false;
             }
-            Thread.sleep(5);
+            Machine.dwell(this, 5);
         }
         return true;
     }
@@ -341,7 +342,7 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
         vacuumOn = vacuumOn - (System.currentTimeMillis() + 
                 Math.round(1.3 * (((ReferenceNozzle)nozzle).getPickDwellMilliseconds() + ((ReferenceNozzleTip)nozzle.getNozzleTip()).getPickDwellMilliseconds())));  // 1.3 times the pick time, just be sure it is really stable
         if (vacuumOn > 0 ) {
-            Thread.sleep(vacuumOn);
+            Machine.dwell(this, vacuumOn);
         }
         // save current value as reference value
         double vacuumLevel = (readVacuum(nozzle) + readVacuum(nozzle) + readVacuum(nozzle)) / 3.0; // average over three reads to reduce the influence of noise
@@ -357,7 +358,7 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
         // but rewrite of pick/place without calling nozzle doesn't seem worth, slow anyway
         nozzle.moveToSafeZ();
         moveFromHeap(nozzle); // safe way away from the other heaps
-        dropBox.dropInto(nozzle); // drop the parts in the dropBox
+        dropBox.dropInto(this, nozzle); // drop the parts in the dropBox
     }
 
     private double pokeForParts(Nozzle nozzle, double vacuumLevel) throws Exception {
@@ -373,7 +374,7 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
             }                                                                                                           // (but only if not after reset = 0. First time let it find the start of the heap)
             moveToPokeLocation(nozzle, currentDepth, part.getHeight().getValue(), i % 25);
             // wait a bit for the vacuum-levels to stabilize
-            Thread.sleep(((ReferenceNozzle)nozzle).getPlaceDwellMilliseconds());
+            Machine.dwell(this, ((ReferenceNozzle)nozzle).getPlaceDwellMilliseconds());
         }
         // if at the bottom => failed
         if (currentDepth <= (boxDepth + part.getHeight().getValue())) {
@@ -443,7 +444,7 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
                     break;
                 }
             }
-            Thread.sleep(((ReferenceNozzle)nozzle).getPlaceDwellMilliseconds() / 3);
+            Machine.dwell(this, ((ReferenceNozzle)nozzle).getPlaceDwellMilliseconds() / 3);
         }
         // if at the bottom => failed
         if (currentDepth <= (boxDepth + part.getHeight().getValue())) {
@@ -537,7 +538,7 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
 
         // ok, now move the part back to the heap
         moveToHeap(nozzle);
-        HeapFeederHelper.dropPart(nozzle, location);
+        HeapFeederHelper.dropPart(this, nozzle, location);
         nozzle.moveToSafeZ();
         // move up a tiny bit the "pick height"
         lastFeedDepth -= part.getHeight().getValue() / 5;
@@ -752,20 +753,22 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
 
         /**
          * Drops the parts on the nozzle into this DropBox.
+         * @param feeder calling feeder
          * @param nozzle used nozzle
          * @throws Exception something went wrong.
          */
-        public void dropInto(Nozzle nozzle) throws Exception {
-            HeapFeederHelper.dropPart(nozzle, dropLocation);
+        public void dropInto(ReferenceHeapFeeder feeder, Nozzle nozzle) throws Exception {
+            HeapFeederHelper.dropPart(feeder, nozzle, dropLocation);
         }
 
         /**
          * tries to flip a part in the DropBox
+         * @param feeder calling feeder
          * @param nozzle used nozze
          * @return true if a part has been detected and dropped again, otherwise false
          * @throws Exception something went wrong 
          */
-        public boolean tryToFlipSomePart(Nozzle nozzle) throws Exception {
+        public boolean tryToFlipSomePart(ReferenceHeapFeeder feeder, Nozzle nozzle) throws Exception {
             // is there a part
             Location partLocation = getPartPickLocation(nozzle);
             if (partLocation == null || lastHeap == null) {
@@ -773,7 +776,7 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
             } else {
                 // pick part, move up, drop it
                 pickPart(nozzle, partLocation, lastHeap.getPart());
-                dropInto(nozzle);
+                dropInto(feeder, nozzle);
                 return true;
             }
         }
@@ -781,10 +784,11 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
         /**
          * Clean up a DropBox.
          * Moves parts to the last Heap, if that i unknown, move to the trash.
+         * @param feeder calling feeder
          * @param nozzle used nozzle.
          * @throws Exception something wrong.
          */
-        public void clean(Nozzle nozzle) throws Exception {
+        public void clean(ReferenceHeapFeeder feeder, Nozzle nozzle) throws Exception {
             int maxAttempts = 30;
 
             for (int i = 0; i < maxAttempts; i++) {
@@ -794,7 +798,7 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
                     lastHeap = null;
                     return; // is empty
                 } else {
-                    removePart(nozzle, partLocation);
+                    removePart(feeder, nozzle, partLocation);
                 }
             }
             throw new Exception("DropBox " + getName() + ": Even after " + maxAttempts + " attempts the DropBox is not detected as empty. Check Pipeline.");
@@ -802,11 +806,12 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
 
         /**
          * Moves a single part, either to the heap where it belongs or the trash if unknown
+         * @param feeder calling feeder
          * @param nozzle used nozze
          * @param partLocation pick location
          * @throws Exception something went wrong
          */
-        private void removePart(Nozzle nozzle, Location partLocation) throws Exception {
+        private void removePart(ReferenceHeapFeeder feeder, Nozzle nozzle, Location partLocation) throws Exception {
             // basically two cases, back to feeder or to the trash
             if (lastHeap == null) { // unknown parts => trash
                 // check nozzle tip
@@ -814,7 +819,7 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
                     nozzle.loadNozzleTip(dummyPartForUnknown.getPackage().getCompatibleNozzleTips().toArray(new NozzleTip[0])[0]);
                 }
                 pickPart(nozzle, partLocation, dummyPartForUnknown);
-                HeapFeederHelper.dropPart(nozzle, Configuration.get().getMachine().getDiscardLocation());
+                HeapFeederHelper.dropPart(feeder, nozzle, Configuration.get().getMachine().getDiscardLocation());
             } else {    // known origin, not wasting parts
                 if ( !lastHeap.getPart().getPackage().getCompatibleNozzleTips().contains(nozzle.getNozzleTip())) {
                     nozzle.loadNozzleTip(lastHeap.getPart().getPackage().getCompatibleNozzleTips().toArray(new NozzleTip[0])[0]);
@@ -822,7 +827,7 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
                 pickPart(nozzle, partLocation, lastHeap.getPart());
                 nozzle.moveToSafeZ();
                 lastHeap.moveToHeap(nozzle);
-                HeapFeederHelper.dropPart(nozzle, lastHeap.getLocation());
+                HeapFeederHelper.dropPart(feeder, nozzle, lastHeap.getLocation());
                 // move up a tiny bit the "pick height"
                 lastHeap.setLastFeedDepth(lastHeap.getLastFeedDepth() -lastHeap.getPart().getHeight().getValue() / 5); 
             }
@@ -1039,11 +1044,12 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
         
         /**
          * Drop(s) the part(s) on the nozzle
+         * @param feeder calling feeder
          * @param nozzle used nozzle
          * @param location destination
          * @throws Exception something went wrong
          */
-        static void dropPart(Nozzle nozzle, Location location) throws Exception {
+        static void dropPart(ReferenceHeapFeeder feeder, Nozzle nozzle, Location location) throws Exception {
             // move to the  location
             if (nozzle.getLocation().getLinearDistanceTo(location) > 0.0001) {
                 nozzle.moveToSafeZ();
@@ -1056,7 +1062,7 @@ public class ReferenceHeapFeeder extends ReferenceFeeder {
             if (blowOffValve != null) {
                 blowOffValve.actuate(true);
             }
-            Thread.sleep(Math.round(1.1 * (((ReferenceNozzle)nozzle).getPlaceDwellMilliseconds() + ((ReferenceNozzleTip)nozzle.getNozzleTip()).getPlaceDwellMilliseconds())));
+            Machine.dwell(feeder, Math.round(1.1 * (((ReferenceNozzle)nozzle).getPlaceDwellMilliseconds() + ((ReferenceNozzleTip)nozzle.getNozzleTip()).getPlaceDwellMilliseconds())));
             // move the nozzle a bit to help parts fall down
             if (blowOffValve != null) {
                 blowOffValve.actuate(false);

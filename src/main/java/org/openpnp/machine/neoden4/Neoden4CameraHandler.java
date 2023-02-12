@@ -1,8 +1,10 @@
 package org.openpnp.machine.neoden4;
 
+import org.openpnp.model.Solutions;
+import org.openpnp.spi.Machine;
 import org.pmw.tinylog.Logger;
 
-public final class Neoden4CameraHandler implements Neoden4CamDll {
+public final class Neoden4CameraHandler implements Neoden4CamDll, Solutions.Subject {
 
 	public Neoden4CameraHandler() {
 	}
@@ -26,23 +28,19 @@ public final class Neoden4CameraHandler implements Neoden4CamDll {
 			Logger.info(String.format("Detected %d neoden cameras...", cameras));
 		}
 
-		try {
-			Thread.sleep(100);
-			instance.img_reset(1);
-			Thread.sleep(10);
-			instance.img_set_wh(1, (short) 1024, (short) 1024);
-			Thread.sleep(10);
-			instance.img_set_lt(1, (short) 0, (short) 0);
-			Thread.sleep(10);
-			instance.img_reset(5);
-			Thread.sleep(10);
-			instance.img_set_wh(5, (short) 1024, (short) 1024);
-			Thread.sleep(10);
-			instance.img_set_lt(5, (short) 0, (short) 0);
-			Thread.sleep(100);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+		Machine.dwell(this, 100);
+        instance.img_reset(1);
+        Machine.dwell(this, 10);
+        instance.img_set_wh(1, (short) 1024, (short) 1024);
+        Machine.dwell(this, 10);
+        instance.img_set_lt(1, (short) 0, (short) 0);
+        Machine.dwell(this, 10);
+        instance.img_reset(5);
+        Machine.dwell(this, 10);
+        instance.img_set_wh(5, (short) 1024, (short) 1024);
+        Machine.dwell(this, 10);
+        instance.img_set_lt(5, (short) 0, (short) 0);
+        Machine.dwell(this, 100);
 	}
 
 	@Override
