@@ -432,7 +432,12 @@ public class ReferenceFiducialLocator extends AbstractPartSettingsHolder impleme
             Rectangle2D bounds = footprint.getPadsShape().getBounds2D();
             Length diameter = new Length(Math.max(bounds.getWidth(), bounds.getHeight()), footprint.getUnits());
             pipeline.setProperty("fiducial.diameter", diameter);
-            pipeline.setProperty("fiducial.maxDistance", getMaxDistance());
+            if (getInheritedVisionSettings(partSettingsHolder) != null) {
+                pipeline.setProperty("fiducial.maxDistance", getInheritedVisionSettings(partSettingsHolder).getMaxLinearOffset());
+            }
+            else {
+                pipeline.setProperty("fiducial.maxDistance", getMaxDistance());
+            }
         }
         pipeline.addProperties(pipelineParameterAssignments);
     }
